@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    border-color: theme('colors.hairline');
+  }
+
+  :focus-visible {
+    outline: 2px solid theme('colors.signal');
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: theme('colors.brass');
+    color: theme('colors.ink');
+  }
+}
+
+@layer utilities {
+  .tape-grain {
+    background-image: radial-gradient(circle at 1px 1px, rgba(237, 234, 226, 0.035) 1px, transparent 0);
+    background-size: 3px 3px;
+  }
+
+  .spin-slow {
+    animation: spin_slow 3s linear infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin-slow {
+    animation: none;
+  }
+  * {
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+  }
+}
