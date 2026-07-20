@@ -9,9 +9,21 @@ export type Song = {
   original_filename: string | null;
   mime_type: string | null;
   size_bytes: number | null;
+  album_id: string | null;
   created_at: string;
   updated_at: string;
 };
+
+export type Album = {
+  id: string;
+  title: string;
+  thumbnail_url: string | null;
+  thumbnail_pathname: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AlbumWithCount = Album & { song_count: number };
 
 function sql() {
   const url = process.env.DATABASE_URL;
@@ -30,6 +42,16 @@ export function ensureSchema(): Promise<void> {
     schemaReady = (async () => {
       const db = sql();
       await db`
+        CREATE TABLE IF NOT EXISTS albums (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          thumbnail_url TEXT,
+          thumbnail_pathname TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `;
+      await db`
         CREATE TABLE IF NOT EXISTS songs (
           id TEXT PRIMARY KEY,
           title TEXT NOT NULL,
@@ -39,19 +61,31 @@ export function ensureSchema(): Promise<void> {
           original_filename TEXT,
           mime_type TEXT,
           size_bytes BIGINT,
+          album_id TEXT REFERENCES albums(id) ON DELETE SET NULL,
           created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
           updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `;
+      // Backfill for databases created before album support existed.
+      await db`ALTER TABLE songs ADD COLUMN IF NOT EXISTS album_id TEXT REFERENCES albums(id) ON DELETE SET NULL`;
     })();
   }
   return schemaReady;
 }
 
+/* ---------------------------- Songs ---------------------------- */
+
 export async function listSongs(): Promise<Song[]> {
   await ensureSchema();
   const db = sql();
   const rows = await db`SELECT * FROM songs ORDER BY created_at DESC`;
+  return rows as Song[];
+}
+
+export async function listSongsByAlbum(albumId: string): Promise<Song[]> {
+  await ensureSchema();
+  const db = sql();
+  const rows = await db`SELECT * FROM songs WHERE album_id = ${albumId} ORDER BY created_at ASC`;
   return rows as Song[];
 }
 
@@ -71,12 +105,13 @@ export async function createSong(input: {
   originalFilename: string;
   mimeType: string;
   sizeBytes: number;
+  albumId?: string | null;
 }): Promise<Song> {
   await ensureSchema();
   const db = sql();
   const rows = await db`
-    INSERT INTO songs (id, title, lyrics, audio_url, audio_pathname, original_filename, mime_type, size_bytes)
-    VALUES (${input.id}, ${input.title}, ${input.lyrics}, ${input.audioUrl}, ${input.audioPathname}, ${input.originalFilename}, ${input.mimeType}, ${input.sizeBytes})
+    INSERT INTO songs (id, title, lyrics, audio_url, audio_pathname, original_filename, mime_type, size_bytes, album_id)
+    VALUES (${input.id}, ${input.title}, ${input.lyrics}, ${input.audioUrl}, ${input.audioPathname}, ${input.originalFilename}, ${input.mimeType}, ${input.sizeBytes}, ${input.albumId ?? null})
     RETURNING *
   `;
   return rows[0] as Song;
@@ -84,7 +119,7 @@ export async function createSong(input: {
 
 export async function updateSongMeta(
   id: string,
-  input: { title?: string; lyrics?: string }
+  input: { title?: string; lyrics?: string; albumId?: string | null }
 ): Promise<Song | null> {
   await ensureSchema();
   const db = sql();
@@ -92,8 +127,9 @@ export async function updateSongMeta(
   if (!current) return null;
   const title = input.title ?? current.title;
   const lyrics = input.lyrics ?? current.lyrics;
+  const albumId = input.albumId !== undefined ? input.albumId : current.album_id;
   const rows = await db`
-    UPDATE songs SET title = ${title}, lyrics = ${lyrics}, updated_at = now()
+    UPDATE songs SET title = ${title}, lyrics = ${lyrics}, album_id = ${albumId}, updated_at = now()
     WHERE id = ${id}
     RETURNING *
   `;
@@ -131,4 +167,71 @@ export async function deleteSong(id: string): Promise<Song | null> {
   const db = sql();
   const rows = await db`DELETE FROM songs WHERE id = ${id} RETURNING *`;
   return (rows[0] as Song) ?? null;
+}
+
+/* ---------------------------- Albums ---------------------------- */
+
+export async function listAlbums(): Promise<AlbumWithCount[]> {
+  await ensureSchema();
+  const db = sql();
+  const rows = await db`
+    SELECT a.*, COUNT(s.id)::int AS song_count
+    FROM albums a
+    LEFT JOIN songs s ON s.album_id = a.id
+    GROUP BY a.id
+    ORDER BY a.created_at DESC
+  `;
+  return rows as AlbumWithCount[];
+}
+
+export async function getAlbum(id: string): Promise<Album | null> {
+  await ensureSchema();
+  const db = sql();
+  const rows = await db`SELECT * FROM albums WHERE id = ${id}`;
+  return (rows[0] as Album) ?? null;
+}
+
+export async function createAlbum(input: {
+  id: string;
+  title: string;
+  thumbnailUrl?: string | null;
+  thumbnailPathname?: string | null;
+}): Promise<Album> {
+  await ensureSchema();
+  const db = sql();
+  const rows = await db`
+    INSERT INTO albums (id, title, thumbnail_url, thumbnail_pathname)
+    VALUES (${input.id}, ${input.title}, ${input.thumbnailUrl ?? null}, ${input.thumbnailPathname ?? null})
+    RETURNING *
+  `;
+  return rows[0] as Album;
+}
+
+export async function updateAlbum(
+  id: string,
+  input: { title?: string; thumbnailUrl?: string | null; thumbnailPathname?: string | null }
+): Promise<Album | null> {
+  await ensureSchema();
+  const db = sql();
+  const current = await getAlbum(id);
+  if (!current) return null;
+  const title = input.title ?? current.title;
+  const thumbnailUrl = input.thumbnailUrl !== undefined ? input.thumbnailUrl : current.thumbnail_url;
+  const thumbnailPathname =
+    input.thumbnailPathname !== undefined ? input.thumbnailPathname : current.thumbnail_pathname;
+  const rows = await db`
+    UPDATE albums
+    SET title = ${title}, thumbnail_url = ${thumbnailUrl}, thumbnail_pathname = ${thumbnailPathname}, updated_at = now()
+    WHERE id = ${id}
+    RETURNING *
+  `;
+  return (rows[0] as Album) ?? null;
+}
+
+export async function deleteAlbum(id: string): Promise<Album | null> {
+  await ensureSchema();
+  const db = sql();
+  // Songs in the album are kept, just unlinked (ON DELETE SET NULL).
+  const rows = await db`DELETE FROM albums WHERE id = ${id} RETURNING *`;
+  return (rows[0] as Album) ?? null;
 }
