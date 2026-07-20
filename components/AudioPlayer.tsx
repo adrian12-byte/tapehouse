@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Tone from 'tone';
-import Knob from './Knob';
+import Slider from './Slider';
 import Reel from './Reel';
 
 type AudioPlayerProps = {
@@ -245,8 +245,8 @@ export default function AudioPlayer({ audioUrl }: AudioPlayerProps) {
             </div>
           </div>
 
-          <div className="mt-7 flex items-center justify-center gap-10 border-t border-hairline pt-6">
-            <Knob
+          <div className="mt-7 flex flex-col gap-5 border-t border-hairline pt-6">
+            <Slider
               label="Speed"
               value={speed}
               min={0.5}
@@ -257,7 +257,7 @@ export default function AudioPlayer({ audioUrl }: AudioPlayerProps) {
               onChange={handleSpeedChange}
               accent="signal"
             />
-            <Knob
+            <Slider
               label="Pitch"
               value={pitch}
               min={-12}
@@ -269,9 +269,6 @@ export default function AudioPlayer({ audioUrl }: AudioPlayerProps) {
               accent="brass"
             />
           </div>
-          <p className="mt-4 text-center font-mono text-[11px] text-boneDim">
-            Drag a knob vertically to adjust · double-click to reset · hold shift to fine-tune
-          </p>
         </>
       )}
     </div>

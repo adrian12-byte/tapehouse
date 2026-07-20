@@ -3,16 +3,19 @@
 import { useRef, useState } from 'react';
 import { createSongRecord } from '@/lib/api';
 import { uploadAudioFile, validateAudioFile } from '@/lib/upload';
-import type { Song } from '@/lib/db';
+import type { AlbumWithCount, Song } from '@/lib/db';
 
 type UploadFormProps = {
   onCreated: (song: Song) => void;
+  albums?: AlbumWithCount[];
+  defaultAlbumId?: string | null;
 };
 
-export default function UploadForm({ onCreated }: UploadFormProps) {
+export default function UploadForm({ onCreated, albums = [], defaultAlbumId = null }: UploadFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
+  const [albumId, setAlbumId] = useState<string>(defaultAlbumId ?? '');
   const [status, setStatus] = useState<'idle' | 'uploading' | 'saving'>('idle');
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -56,11 +59,13 @@ export default function UploadForm({ onCreated }: UploadFormProps) {
       const song = await createSongRecord({
         title: title.trim(),
         lyrics: '',
+        albumId: albumId || null,
         ...uploaded,
       });
       onCreated(song);
       setFile(null);
       setTitle('');
+      if (!defaultAlbumId) setAlbumId('');
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed.');
@@ -111,6 +116,27 @@ export default function UploadForm({ onCreated }: UploadFormProps) {
         placeholder="Untitled take"
         className="mb-4 w-full border border-hairline bg-ink px-3 py-2 text-sm text-bone outline-none focus:border-signal"
       />
+
+      {albums.length > 0 && (
+        <>
+          <label htmlFor="song-album" className="mb-1.5 block text-xs uppercase tracking-wide text-boneDim">
+            Album (optional)
+          </label>
+          <select
+            id="song-album"
+            value={albumId}
+            onChange={(e) => setAlbumId(e.target.value)}
+            className="mb-4 w-full border border-hairline bg-ink px-3 py-2 text-sm text-bone outline-none focus:border-signal"
+          >
+            <option value="">No album</option>
+            {albums.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.title}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
 
       {error && <p className="mb-3 font-mono text-xs text-rust">{error}</p>}
 
