@@ -23,7 +23,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   try {
     const data = await request.json();
-    const { title, lyrics } = data ?? {};
+    const { title, lyrics, albumId } = data ?? {};
 
     if (title !== undefined && (typeof title !== 'string' || !title.trim())) {
       return NextResponse.json({ error: 'Song name cannot be empty.' }, { status: 400 });
@@ -32,6 +32,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const song = await updateSongMeta(params.id, {
       title: typeof title === 'string' ? title.trim() : undefined,
       lyrics: typeof lyrics === 'string' ? lyrics : undefined,
+      albumId: albumId === undefined ? undefined : albumId === null ? null : String(albumId),
     });
 
     if (!song) {

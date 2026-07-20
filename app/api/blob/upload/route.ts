@@ -1,6 +1,11 @@
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
 import { NextResponse } from 'next/server';
-import { ACCEPTED_MIME_TYPES, MAX_FILE_SIZE_BYTES } from '@/lib/constants';
+import {
+  ACCEPTED_MIME_TYPES,
+  MAX_FILE_SIZE_BYTES,
+  IMAGE_MIME_TYPES,
+  MAX_IMAGE_SIZE_BYTES,
+} from '@/lib/constants';
 
 export const runtime = 'nodejs';
 
@@ -11,17 +16,31 @@ export async function POST(request: Request): Promise<NextResponse> {
     const jsonResponse = await handleUpload({
       body,
       request,
-      onBeforeGenerateToken: async () => {
-        return {
-          allowedContentTypes: ACCEPTED_MIME_TYPES,
-          addRandomSuffix: true,
-          maximumSizeInBytes: MAX_FILE_SIZE_BYTES,
-        };
+      onBeforeGenerateToken: async (_pathname, clientPayload) => {
+        let kind: 'audio' | 'thumbnail' = 'audio';
+        try {
+          const parsed = clientPayload ? JSON.parse(clientPayload) : null;
+          if (parsed?.kind === 'thumbnail') kind = 'thumbnail';
+        } catch {
+          // Default to audio if the payload is missing or malformed.
+        }
+
+        return kind === 'thumbnail'
+          ? {
+              allowedContentTypes: IMAGE_MIME_TYPES,
+              addRandomSuffix: true,
+              maximumSizeInBytes: MAX_IMAGE_SIZE_BYTES,
+            }
+          : {
+              allowedContentTypes: ACCEPTED_MIME_TYPES,
+              addRandomSuffix: true,
+              maximumSizeInBytes: MAX_FILE_SIZE_BYTES,
+            };
       },
       onUploadCompleted: async () => {
         // Nothing to do server-side here — the client creates/updates the
-        // song record itself once the upload promise resolves, so this
-        // works the same in local dev (no public callback URL) and prod.
+        // record itself once the upload promise resolves, so this works
+        // the same in local dev (no public callback URL) and prod.
       },
     });
 

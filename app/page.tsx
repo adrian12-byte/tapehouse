@@ -3,20 +3,29 @@
 import { useEffect, useState } from 'react';
 import UploadForm from '@/components/UploadForm';
 import SongList from '@/components/SongList';
-import type { Song } from '@/lib/db';
-import { fetchSongs } from '@/lib/api';
+import AlbumList from '@/components/AlbumList';
+import NewAlbumForm from '@/components/NewAlbumForm';
+import type { AlbumWithCount, Song } from '@/lib/db';
+import { fetchAlbums, fetchSongs } from '@/lib/api';
 
 export default function HomePage() {
   const [songs, setSongs] = useState<Song[]>([]);
+  const [albums, setAlbums] = useState<AlbumWithCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showNewAlbum, setShowNewAlbum] = useState(false);
 
   useEffect(() => {
-    fetchSongs()
-      .then(setSongs)
+    Promise.all([fetchSongs(), fetchAlbums()])
+      .then(([s, a]) => {
+        setSongs(s);
+        setAlbums(a);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load'))
       .finally(() => setLoading(false));
   }, []);
+
+  const unsorted = songs.filter((s) => !s.album_id);
 
   return (
     <main className="mx-auto min-h-screen max-w-5xl px-6 py-12">
@@ -32,18 +41,46 @@ export default function HomePage() {
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[320px_1fr]">
         <div className="lg:sticky lg:top-12 lg:self-start">
-          <UploadForm onCreated={(song) => setSongs((prev) => [song, ...prev])} />
+          <UploadForm
+            albums={albums}
+            onCreated={(song) => setSongs((prev) => [song, ...prev])}
+          />
         </div>
 
         <div>
           {error && <p className="mb-4 font-mono text-sm text-rust">{error}</p>}
+
           {loading ? (
             <p className="font-mono text-sm text-boneDim">Loading deck…</p>
           ) : (
-            <SongList songs={songs} />
+            <>
+              <section className="mb-10">
+                <h2 className="mb-3 font-mono text-[10px] uppercase tracking-[0.25em] text-boneDim">
+                  Album projects
+                </h2>
+                <AlbumList albums={albums} onNewAlbum={() => setShowNewAlbum(true)} />
+              </section>
+
+              <section>
+                <h2 className="mb-3 font-mono text-[10px] uppercase tracking-[0.25em] text-boneDim">
+                  Unsorted tracks
+                </h2>
+                <SongList songs={unsorted} />
+              </section>
+            </>
           )}
         </div>
       </div>
+
+      {showNewAlbum && (
+        <NewAlbumForm
+          onClose={() => setShowNewAlbum(false)}
+          onCreated={(album) => {
+            setAlbums((prev) => [{ ...album, song_count: 0 }, ...prev]);
+            setShowNewAlbum(false);
+          }}
+        />
+      )}
     </main>
   );
 }

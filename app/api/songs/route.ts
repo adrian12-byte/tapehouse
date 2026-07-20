@@ -23,7 +23,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const data = await request.json();
-    const { title, lyrics, url, pathname, filename, mimeType, size } = data ?? {};
+    const { title, lyrics, url, pathname, filename, mimeType, size, albumId } = data ?? {};
 
     if (!title || typeof title !== 'string') {
       return NextResponse.json({ error: 'A song name is required.' }, { status: 400 });
@@ -41,6 +41,7 @@ export async function POST(request: Request) {
       originalFilename: filename ?? 'audio',
       mimeType: mimeType ?? 'application/octet-stream',
       sizeBytes: typeof size === 'number' ? size : 0,
+      albumId: typeof albumId === 'string' ? albumId : null,
     });
 
     return NextResponse.json({ song }, { status: 201 });
